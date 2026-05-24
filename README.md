@@ -115,7 +115,7 @@ aws-cloud-infra-lab/
 │
 ├── config/
 │   ├── iam-config.md          # IAM users, groups, roles, policies     ✅
-│   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ⏳
+│   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ✅
 │   ├── ec2-config.md          # EC2 instances and configuration         ⏳
 │   ├── s3-config.md           # S3 buckets, policies, lifecycle         ⏳
 │   └── cloudwatch-config.md   # Monitoring, alarms, log groups          ⏳
@@ -138,7 +138,7 @@ aws-cloud-infra-lab/
 | #   | Phase                                                                 | Status       |
 | --- | --------------------------------------------------------------------- | ------------ |
 | 1   | AWS Free Tier setup + IAM users, groups, and MFA                      | ✅ Completed |
-| 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ⏳ Pending   |
+| 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ✅ Completed |
 | 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ⏳ Pending   |
 | 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ⏳ Pending   |
 | 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ⏳ Pending   |
@@ -444,3 +444,283 @@ IAM → Account settings → Password policy → Edit
         />
 </p>
 ---
+
+---
+ 
+# ✅ Phase 2 — Custom VPC & Networking
+ 
+## 📋 What This Phase Covers
+ 
+The VPC (Virtual Private Cloud) is the networking foundation for everything
+built in AWS. This phase builds a custom VPC from scratch — public and private
+subnets, internet gateway, route tables, NAT gateway, and security groups.
+Every EC2 instance, S3 endpoint, and CloudWatch resource in later phases
+lives inside this VPC.
+ 
+> Full VPC configuration reference: [`config/vpc-config.md`](config/vpc-config.md)
+ 
+---
+ 
+## 🔍 VPC Architecture
+ 
+```
+VPC: 10.0.0.0/16
+│
+├── Public Subnet (10.0.1.0/24) — ca-central-1a
+│   ├── Internet Gateway attached
+│   ├── Route: 0.0.0.0/0 → Internet Gateway
+│   └── EC2 Windows Server (Phase 3)
+│
+└── Private Subnet (10.0.2.0/24) — ca-central-1b
+    ├── No direct internet access
+    ├── Route: 0.0.0.0/0 → NAT Gateway
+    └── EC2 Linux Ubuntu (Phase 3)
+```
+ 
+---
+ 
+## ⚙️ Part A — Create the Custom VPC
+ 
+```
+AWS Console → search "VPC" → Your VPCs → Create VPC
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Resources to create** | VPC only |
+| **Name tag** | `InfoTech-VPC` |
+| **IPv4 CIDR** | `10.0.0.0/16` |
+| **IPv6** | No IPv6 CIDR block |
+| **Tenancy** | Default |
+ 
+Click **Create VPC** ✅
+ 
+---
+ 
+## ⚙️ Part B — Create Subnets
+ 
+Create two subnets — one public, one private — in different
+availability zones for high availability.
+ 
+```
+VPC → Subnets → Create subnet
+→ Select VPC: InfoTech-VPC
+```
+ 
+**Public Subnet:**
+ 
+| Field | Value |
+|-------|-------|
+| **Subnet name** | `InfoTech-Public-Subnet` |
+| **Availability Zone** | `ca-central-1a` |
+| **IPv4 CIDR** | `10.0.1.0/24` |
+ 
+**Private Subnet:**
+ 
+| Field | Value |
+|-------|-------|
+| **Subnet name** | `InfoTech-Private-Subnet` |
+| **Availability Zone** | `ca-central-1b` |
+| **IPv4 CIDR** | `10.0.2.0/24` |
+ 
+**Enable auto-assign public IP on the public subnet:**
+```
+Subnets → select InfoTech-Public-Subnet
+→ Actions → Edit subnet settings
+→ Enable auto-assign public IPv4 address → Save
+```
+ 
+---
+ 
+## ⚙️ Part C — Create and Attach Internet Gateway
+ 
+The Internet Gateway (IGW) allows resources in the public subnet
+to communicate with the internet.
+ 
+```
+VPC → Internet gateways → Create internet gateway
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Name tag** | `InfoTech-IGW` |
+ 
+Click **Create** → then **Attach to VPC** → select `InfoTech-VPC` ✅
+ 
+---
+ 
+## ⚙️ Part D — Create Route Tables
+ 
+Route tables control where traffic flows from each subnet.
+ 
+**Public Route Table:**
+ 
+```
+VPC → Route tables → Create route table
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Name** | `InfoTech-Public-RT` |
+| **VPC** | `InfoTech-VPC` |
+ 
+Add a route to send all internet traffic to the IGW:
+```
+Select InfoTech-Public-RT → Routes tab → Edit routes → Add route
+Destination: 0.0.0.0/0
+Target: InfoTech-IGW
+Save changes
+```
+ 
+Associate with the public subnet:
+```
+Subnet associations tab → Edit subnet associations
+→ Select: InfoTech-Public-Subnet → Save
+```
+ 
+**Private Route Table:**
+ 
+```
+Create route table
+Name: InfoTech-Private-RT
+VPC: InfoTech-VPC
+```
+ 
+Associate with the private subnet:
+```
+Subnet associations → Edit → Select: InfoTech-Private-Subnet → Save
+```
+ 
+> The private route table has no internet route by default.
+> Traffic from private subnet goes through the NAT Gateway (Part E).
+ 
+---
+ 
+## ⚙️ Part E — Create NAT Gateway
+ 
+The NAT Gateway allows instances in the private subnet to reach
+the internet for updates — without exposing them to inbound traffic.
+ 
+```
+VPC → NAT gateways → Create NAT gateway
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Name** | `InfoTech-NAT-GW` |
+| **Subnet** | `InfoTech-Public-Subnet` (NAT must be in public subnet) |
+| **Connectivity type** | Public |
+| **Elastic IP** | Allocate Elastic IP → click Allocate |
+ 
+Click **Create NAT gateway** — takes 1–2 minutes to become Available.
+ 
+Once available, add the NAT route to the private route table:
+```
+Route tables → InfoTech-Private-RT → Routes → Edit routes → Add route
+Destination: 0.0.0.0/0
+Target: InfoTech-NAT-GW
+Save changes
+```
+ 
+> ⚠️ **Cost note:** NAT Gateway charges approximately $0.045/hour.
+> Delete it when not in use — recreate when needed.
+> For Free Tier labs, stop the NAT Gateway between sessions.
+ 
+---
+ 
+## ⚙️ Part F — Create Security Groups
+ 
+Security Groups act as virtual firewalls controlling inbound and
+outbound traffic at the instance level.
+ 
+**Security Group 1 — Windows EC2 (RDP access)**
+ 
+```
+VPC → Security groups → Create security group
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Name** | `InfoTech-Windows-SG` |
+| **VPC** | `InfoTech-VPC` |
+ 
+Inbound rules:
+ 
+| Type | Protocol | Port | Source | Purpose |
+|------|----------|------|--------|---------|
+| RDP | TCP | 3389 | My IP | Remote desktop access |
+| ICMP | All | All | 10.0.0.0/16 | Internal ping |
+ 
+Outbound rules: Allow all (default) ✅
+ 
+---
+ 
+**Security Group 2 — Linux EC2 (SSH access)**
+ 
+| Field | Value |
+|-------|-------|
+| **Name** | `InfoTech-Linux-SG` |
+| **VPC** | `InfoTech-VPC` |
+ 
+Inbound rules:
+ 
+| Type | Protocol | Port | Source | Purpose |
+|------|----------|------|--------|---------|
+| SSH | TCP | 22 | My IP | SSH access |
+| ICMP | All | All | 10.0.0.0/16 | Internal ping |
+ 
+Outbound rules: Allow all (default) ✅
+ 
+---
+ 
+## ⚙️ Part G — Enable VPC Flow Logs
+ 
+VPC Flow Logs capture all network traffic in and out of the VPC —
+useful for security monitoring and troubleshooting.
+ 
+```
+VPC → Your VPCs → select InfoTech-VPC
+→ Flow logs tab → Create flow log
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Filter** | All |
+| **Destination** | CloudWatch Logs |
+| **Log group** | `/aws/vpc/infotech-flow-logs` (create new) |
+| **IAM role** | Create new role — allow VPC to write to CloudWatch |
+ 
+---
+ 
+## ✅ Outcome
+ 
+- Custom VPC `InfoTech-VPC` created — `10.0.0.0/16` ✅
+- Public subnet `10.0.1.0/24` in `ca-central-1a` ✅
+- Private subnet `10.0.2.0/24` in `ca-central-1b` ✅
+- Internet Gateway created and attached to VPC ✅
+- Public route table — routes internet traffic via IGW ✅
+- Private route table — routes outbound traffic via NAT Gateway ✅
+- NAT Gateway created in public subnet ✅
+- Security Group for Windows EC2 — RDP on port 3389 ✅
+- Security Group for Linux EC2 — SSH on port 22 ✅
+- VPC Flow Logs enabled — sending to CloudWatch ✅
+---
+<p align="center">
+  <img src="screenshots/phase2/phase2-img1.png" width="45%"
+        />
+  <img src="screenshots/phase2/phase2-img2.png" width="45%"
+        />
+</p>
+<p align="center">
+  <img src="screenshots/phase2/phase2-img3.png" width="45%"
+       />
+  <img src="screenshots/phase2/phase2-img4.png" width="45%"
+        />
+</p>
+
+<p align="center">
+  <img src="screenshots/phase2/phase2-img5.png" width="45%"
+       />
+  <img src="screenshots/phase2/phase2-img6.png" width="45%"
+        />
+</p>
