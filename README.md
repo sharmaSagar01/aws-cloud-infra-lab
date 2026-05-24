@@ -27,6 +27,7 @@ covering the core AWS services that appear in every IT, sysadmin, and
 cloud support role: identity, networking, compute, storage, and monitoring.
 
 **What this project demonstrates:**
+
 - Designing and deploying a custom VPC with public and private subnets
 - Launching and managing Windows Server and Linux EC2 instances
 - Configuring IAM users, groups, roles, and least-privilege policies
@@ -113,7 +114,7 @@ cloud support role: identity, networking, compute, storage, and monitoring.
 aws-cloud-infra-lab/
 │
 ├── config/
-│   ├── iam-config.md          # IAM users, groups, roles, policies     ⏳
+│   ├── iam-config.md          # IAM users, groups, roles, policies     ✅
 │   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ⏳
 │   ├── ec2-config.md          # EC2 instances and configuration         ⏳
 │   ├── s3-config.md           # S3 buckets, policies, lifecycle         ⏳
@@ -134,28 +135,28 @@ aws-cloud-infra-lab/
 
 ## 🧩 Build Progress
 
-| # | Phase | Status |
-|---|-------|--------|
-| 1 | AWS Free Tier setup + IAM users, groups, and MFA | ⏳ Pending |
-| 2 | Custom VPC — subnets, route tables, security groups, internet gateway | ⏳ Pending |
-| 3 | EC2 — launch Windows and Linux instances, connect via RDP and SSH | ⏳ Pending |
-| 4 | S3 — buckets, policies, versioning, and lifecycle rules | ⏳ Pending |
-| 5 | CloudWatch — monitoring, alarms, dashboards, and log groups | ⏳ Pending |
-| 6 | IAM hardening + AWS security best practices | ⏳ Pending |
-| 7 | Runbook + final documentation + GitHub push | ⏳ Pending |
+| #   | Phase                                                                 | Status       |
+| --- | --------------------------------------------------------------------- | ------------ |
+| 1   | AWS Free Tier setup + IAM users, groups, and MFA                      | ✅ Completed |
+| 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ⏳ Pending   |
+| 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ⏳ Pending   |
+| 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ⏳ Pending   |
+| 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ⏳ Pending   |
+| 6   | IAM hardening + AWS security best practices                           | ⏳ Pending   |
+| 7   | Runbook + final documentation + GitHub push                           | ⏳ Pending   |
 
 ---
 
 ## 🎯 What You Will Have at the End
 
-| Capability | Details |
-|------------|---------|
-| **Cloud Networking** | Custom VPC with public and private subnets |
-| **Compute** | Windows Server and Ubuntu EC2 instances |
-| **Identity** | IAM users, groups, roles, and least-privilege policies |
-| **Storage** | S3 buckets with policies, versioning, and lifecycle management |
-| **Monitoring** | CloudWatch dashboards, alarms, and log groups |
-| **Security** | MFA on root, least-privilege IAM, security groups, hardened config |
+| Capability           | Details                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| **Cloud Networking** | Custom VPC with public and private subnets                         |
+| **Compute**          | Windows Server and Ubuntu EC2 instances                            |
+| **Identity**         | IAM users, groups, roles, and least-privilege policies             |
+| **Storage**          | S3 buckets with policies, versioning, and lifecycle management     |
+| **Monitoring**       | CloudWatch dashboards, alarms, and log groups                      |
+| **Security**         | MFA on root, least-privilege IAM, security groups, hardened config |
 
 ---
 
@@ -163,14 +164,14 @@ aws-cloud-infra-lab/
 
 **AWS Free Tier includes (sufficient for this project):**
 
-| Service | Free Tier Limit |
-|---------|----------------|
-| EC2 | 750 hours/month — `t2.micro` |
-| S3 | 5 GB storage |
-| CloudWatch | 10 custom metrics, 5 GB log data |
-| IAM | Always free |
-| VPC | Always free |
-| Data Transfer | 100 GB out/month |
+| Service       | Free Tier Limit                  |
+| ------------- | -------------------------------- |
+| EC2           | 750 hours/month — `t2.micro`     |
+| S3            | 5 GB storage                     |
+| CloudWatch    | 10 custom metrics, 5 GB log data |
+| IAM           | Always free                      |
+| VPC           | Always free                      |
+| Data Transfer | 100 GB out/month                 |
 
 > ⚠️ **Important:** Always check the AWS Free Tier usage dashboard
 > before running instances. Stop EC2 instances when not in use to
@@ -178,6 +179,7 @@ aws-cloud-infra-lab/
 > Set a billing alert at $5 immediately after account creation.
 
 **Before starting Phase 1:**
+
 - Sign up at `https://aws.amazon.com/free`
 - A valid credit card is required for identity verification
 - You will not be charged within Free Tier limits
@@ -185,6 +187,260 @@ aws-cloud-infra-lab/
 
 ---
 
-<div align="center">
-<sub>☁️ Built for learning • ⭐ Star if you find this useful • More phases coming soon</sub>
-</div>
+# ✅ Phase 1 — AWS Account Setup, IAM & Billing
+
+## 📋 What This Phase Covers
+
+Before touching any AWS service, the account needs to be secured and
+structured properly. This phase locks down the root account, creates
+a dedicated admin user following AWS best practice, sets up IAM groups
+and policies, and configures billing alerts to protect against unexpected charges.
+
+> Full IAM configuration reference: [`config/iam-config.md`](config/iam-config.md)
+
+---
+
+## ⚙️ Part A — Secure the Root Account
+
+The root account has unrestricted access to everything in AWS.
+Best practice is to secure it immediately and never use it for day-to-day work.
+
+**Step 1 — Enable MFA on Root**
+
+```
+AWS Console → click your account name (top right)
+→ Security credentials
+→ Multi-factor authentication (MFA)
+→ Assign MFA device
+→ Select: Authenticator app
+→ Scan QR code with Microsoft Authenticator or Google Authenticator
+→ Enter two consecutive codes to verify → Add MFA
+```
+
+**Step 2 — Remove Root Access Keys (if any exist)**
+
+```
+Security credentials → Access keys
+→ If any keys exist → Delete them
+→ Root should never have programmatic access keys
+```
+
+---
+
+## ⚙️ Part B — Set a Billing Alert
+
+Do this before creating any resources — takes 2 minutes and
+protects against unexpected charges.
+
+```
+AWS Console → search "Billing"
+→ Budgets → Create budget
+→ Use a template: Zero spend budget
+   OR
+→ Monthly cost budget → set amount: $10
+→ Alert threshold: 80% of budget
+→ Email: your email address
+→ Create budget
+```
+
+Also enable billing alerts via CloudWatch:
+
+```
+Billing → Billing preferences
+→ Check: Receive CloudWatch Billing Alerts → Save
+```
+
+---
+
+## ⚙️ Part C — Set Default Region to Canada
+
+```
+AWS Console → top right region selector
+→ Select: Canada (Central) — ca-central-1
+```
+
+All resources created in this project use `ca-central-1` unless
+stated otherwise.
+
+---
+
+## ⚙️ Part D — Create an IAM Admin User
+
+Never use the root account for daily work. Create a dedicated
+IAM admin user instead:
+
+```
+AWS Console → search "IAM" → Users → Create user
+```
+
+| Field                      | Value                 |
+| -------------------------- | --------------------- |
+| **Username**               | `iamadmin`            |
+| **Console access**         | Yes                   |
+| **Password**               | Set a strong password |
+| **Require password reset** | No                    |
+
+**Attach permissions:**
+
+```
+Attach policies directly
+→ Search: AdministratorAccess
+→ Check it → Next → Create user
+```
+
+**Save the sign-in URL:**
+
+```
+IAM → Dashboard → AWS Account section
+→ Copy the sign-in URL:
+  https://YOUR-ACCOUNT-ID.signin.aws.amazon.com/console
+```
+
+Sign out of root → sign back in as `iamadmin` using the IAM sign-in URL.
+Use this account for all remaining phases.
+
+---
+
+## ⚙️ Part E — Enable MFA on the IAM Admin User
+
+```
+IAM → Users → iamadmin
+→ Security credentials tab
+→ Multi-factor authentication → Assign MFA device
+→ Authenticator app → scan QR → verify → Add MFA
+```
+
+Sign out and sign back in — confirm MFA is prompted on login ✅
+
+---
+
+## ⚙️ Part F — Create IAM Groups and Users
+
+Structure IAM with groups so permissions are managed at the group
+level — not assigned individually to users:
+
+**Create Groups:**
+
+```
+IAM → User groups → Create group
+```
+
+| Group Name   | Policy Attached     | Purpose              |
+| ------------ | ------------------- | -------------------- |
+| `Admins`     | AdministratorAccess | Full admin access    |
+| `Developers` | PowerUserAccess     | All except IAM       |
+| `ReadOnly`   | ReadOnlyAccess      | View only — auditing |
+
+**Create Lab Users:**
+
+```
+IAM → Users → Create user
+```
+
+| Username        | Group      | Purpose                               |
+| --------------- | ---------- | ------------------------------------- |
+| `iamadmin`      | Admins     | Primary admin — used for all lab work |
+| `dev-user`      | Developers | Simulates a developer account         |
+| `readonly-user` | ReadOnly   | Simulates an auditor account          |
+
+---
+
+## ⚙️ Part G — Create a Custom IAM Policy
+
+Practice writing a custom IAM policy — this is a real-world skill
+tested in interviews. Create a policy that allows S3 read-only access
+to a specific bucket:
+
+```
+IAM → Policies → Create policy → JSON tab
+```
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3ReadOnlySpecificBucket",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::infotech-lab-bucket",
+        "arn:aws:s3:::infotech-lab-bucket/*"
+      ]
+    }
+  ]
+}
+```
+
+| Field           | Value                                   |
+| --------------- | --------------------------------------- |
+| **Policy Name** | `S3ReadOnly-InfoTechBucket`             |
+| **Description** | Read-only access to infotech-lab-bucket |
+
+---
+
+## ⚙️ Part H — Explore the IAM Security Dashboard
+
+```
+IAM → Security recommendations
+```
+
+All items should be green after completing this phase:
+
+| Check                      | Expected Status |
+| -------------------------- | --------------- |
+| Root MFA enabled           | ✅ Green        |
+| Root access keys deleted   | ✅ Green        |
+| IAM admin user created     | ✅ Green        |
+| Admin user MFA enabled     | ✅ Green        |
+| Password policy configured | ✅ Green        |
+
+**Set a password policy:**
+
+```
+IAM → Account settings → Password policy → Edit
+→ Minimum length: 12
+→ Require uppercase: Yes
+→ Require numbers: Yes
+→ Require symbols: Yes
+→ Save changes
+```
+
+---
+
+## ✅ Outcome
+
+- Root account secured — MFA enabled, access keys removed ✅
+- Billing alert configured — $10 budget with email notification ✅
+- Default region set to `ca-central-1` (Canada Central) ✅
+- IAM admin user `iamadmin` created with AdministratorAccess ✅
+- MFA enabled on `iamadmin` — root never used again ✅
+- 3 IAM groups created — Admins, Developers, ReadOnly ✅
+- 3 IAM users created and assigned to groups ✅
+- Custom IAM policy written in JSON — S3 read-only ✅
+- IAM Security Dashboard — all checks green ✅
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/phase1/phase1-img1.png" width="45%"
+        />
+  <img src="screenshots/phase1/phase1-img2.png" width="45%"
+        />
+</p>
+<p align="center">
+  <img src="screenshots/phase1/phase1-img3.png" width="45%"
+       />
+  <img src="screenshots/phase1/phase1-img4.png" width="45%"
+        />
+</p>
+
+<p align="center">
+  <img src="screenshots/phase1/phase1-img5.png" width="45%"
+       />
+  <img src="screenshots/phase1/phase1-img6.png" width="45%"
+        />
+</p>
+---
