@@ -116,7 +116,7 @@ aws-cloud-infra-lab/
 ├── config/
 │   ├── iam-config.md          # IAM users, groups, roles, policies     ✅
 │   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ✅
-│   ├── ec2-config.md          # EC2 instances and configuration         ⏳
+│   ├── ec2-config.md          # EC2 instances and configuration        ✅
 │   ├── s3-config.md           # S3 buckets, policies, lifecycle         ⏳
 │   └── cloudwatch-config.md   # Monitoring, alarms, log groups          ⏳
 │
@@ -139,7 +139,7 @@ aws-cloud-infra-lab/
 | --- | --------------------------------------------------------------------- | ------------ |
 | 1   | AWS Free Tier setup + IAM users, groups, and MFA                      | ✅ Completed |
 | 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ✅ Completed |
-| 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ⏳ Pending   |
+| 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ✅ Completed |
 | 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ⏳ Pending   |
 | 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ⏳ Pending   |
 | 6   | IAM hardening + AWS security best practices                           | ⏳ Pending   |
@@ -373,9 +373,9 @@ IAM → Policies → Create policy → JSON tab
 ```
 
 | Field           | Value                                   |
-| --------------- | --------------------------------------- |
+| --------------- | --------------------------------------- | --- |
 | **Policy Name** | `S3ReadOnly-InfoTechBucket`             |
-| **Description** | Read-only access to infotech-lab-bucket |
+| **Description** | Read-only access to infotech-lab-bucket | ￼   |
 
 ---
 
@@ -446,23 +446,23 @@ IAM → Account settings → Password policy → Edit
 ---
 
 ---
- 
+
 # ✅ Phase 2 — Custom VPC & Networking
- 
+
 ## 📋 What This Phase Covers
- 
+
 The VPC (Virtual Private Cloud) is the networking foundation for everything
 built in AWS. This phase builds a custom VPC from scratch — public and private
 subnets, internet gateway, route tables, NAT gateway, and security groups.
 Every EC2 instance, S3 endpoint, and CloudWatch resource in later phases
 lives inside this VPC.
- 
+
 > Full VPC configuration reference: [`config/vpc-config.md`](config/vpc-config.md)
- 
+
 ---
- 
+
 ## 🔍 VPC Architecture
- 
+
 ```
 VPC: 10.0.0.0/16
 │
@@ -476,224 +476,275 @@ VPC: 10.0.0.0/16
     ├── Route: 0.0.0.0/0 → NAT Gateway
     └── EC2 Linux Ubuntu (Phase 3)
 ```
- 
+
 ---
- 
+
 ## ⚙️ Part A — Create the Custom VPC
- 
+
 ```
 AWS Console → search "VPC" → Your VPCs → Create VPC
 ```
- 
-| Field | Value |
-|-------|-------|
-| **Resources to create** | VPC only |
-| **Name tag** | `InfoTech-VPC` |
-| **IPv4 CIDR** | `10.0.0.0/16` |
-| **IPv6** | No IPv6 CIDR block |
-| **Tenancy** | Default |
- 
+
+| Field                   | Value              |
+| ----------------------- | ------------------ |
+| **Resources to create** | VPC only           |
+| **Name tag**            | `InfoTech-VPC`     |
+| **IPv4 CIDR**           | `10.0.0.0/16`      |
+| **IPv6**                | No IPv6 CIDR block |
+| **Tenancy**             | Default            |
+
 Click **Create VPC** ✅
- 
+
 ---
- 
+
 ## ⚙️ Part B — Create Subnets
- 
+
 Create two subnets — one public, one private — in different
 availability zones for high availability.
- 
+
 ```
 VPC → Subnets → Create subnet
 → Select VPC: InfoTech-VPC
 ```
- 
+
 **Public Subnet:**
- 
-| Field | Value |
-|-------|-------|
-| **Subnet name** | `InfoTech-Public-Subnet` |
-| **Availability Zone** | `ca-central-1a` |
-| **IPv4 CIDR** | `10.0.1.0/24` |
- 
+
+| Field                 | Value                    |
+| --------------------- | ------------------------ |
+| **Subnet name**       | `InfoTech-Public-Subnet` |
+| **Availability Zone** | `ca-central-1a`          |
+| **IPv4 CIDR**         | `10.0.1.0/24`            |
+
 **Private Subnet:**
- 
-| Field | Value |
-|-------|-------|
-| **Subnet name** | `InfoTech-Private-Subnet` |
-| **Availability Zone** | `ca-central-1b` |
-| **IPv4 CIDR** | `10.0.2.0/24` |
- 
+
+| Field                 | Value                     |
+| --------------------- | ------------------------- |
+| **Subnet name**       | `InfoTech-Private-Subnet` |
+| **Availability Zone** | `ca-central-1b`           |
+| **IPv4 CIDR**         | `10.0.2.0/24`             |
+
 **Enable auto-assign public IP on the public subnet:**
+
 ```
 Subnets → select InfoTech-Public-Subnet
 → Actions → Edit subnet settings
 → Enable auto-assign public IPv4 address → Save
 ```
- 
+
 ---
- 
+
 ## ⚙️ Part C — Create and Attach Internet Gateway
- 
+
 The Internet Gateway (IGW) allows resources in the public subnet
 to communicate with the internet.
- 
+
 ```
 VPC → Internet gateways → Create internet gateway
 ```
- 
-| Field | Value |
-|-------|-------|
+
+| Field        | Value          |
+| ------------ | -------------- |
 | **Name tag** | `InfoTech-IGW` |
- 
+
 Click **Create** → then **Attach to VPC** → select `InfoTech-VPC` ✅
- 
+
 ---
- 
-## ⚙️ Part D — Create Route Tables
- 
+
+### ⚙️ Part D — Create Route Tables
+
 Route tables control where traffic flows from each subnet.
- 
+
 **Public Route Table:**
- 
+
 ```
 VPC → Route tables → Create route table
 ```
- 
-| Field | Value |
-|-------|-------|
+
+| Field    | Value                |
+| -------- | -------------------- |
 | **Name** | `InfoTech-Public-RT` |
-| **VPC** | `InfoTech-VPC` |
- 
+| **VPC**  | `InfoTech-VPC`       |
+
 Add a route to send all internet traffic to the IGW:
+
 ```
 Select InfoTech-Public-RT → Routes tab → Edit routes → Add route
 Destination: 0.0.0.0/0
 Target: InfoTech-IGW
 Save changes
 ```
- 
+
 Associate with the public subnet:
+
 ```
 Subnet associations tab → Edit subnet associations
 → Select: InfoTech-Public-Subnet → Save
 ```
- 
+
 **Private Route Table:**
- 
+
 ```
 Create route table
 Name: InfoTech-Private-RT
 VPC: InfoTech-VPC
 ```
- 
+
 Associate with the private subnet:
+
 ```
 Subnet associations → Edit → Select: InfoTech-Private-Subnet → Save
 ```
- 
+
 > The private route table has no internet route by default.
 > Traffic from private subnet goes through the NAT Gateway (Part E).
- 
+
 ---
- 
+
 ## ⚙️ Part E — Create NAT Gateway
- 
+
 The NAT Gateway allows instances in the private subnet to reach
 the internet for updates — without exposing them to inbound traffic.
- 
+
 ```
 VPC → NAT gateways → Create NAT gateway
 ```
- 
-| Field | Value |
-|-------|-------|
-| **Name** | `InfoTech-NAT-GW` |
-| **Subnet** | `InfoTech-Public-Subnet` (NAT must be in public subnet) |
-| **Connectivity type** | Public |
-| **Elastic IP** | Allocate Elastic IP → click Allocate |
- 
+
+| Field                 | Value                                                   |
+| --------------------- | ------------------------------------------------------- |
+| **Name**              | `InfoTech-NAT-GW`                                       |
+| **Subnet**            | `InfoTech-Public-Subnet` (NAT must be in public subnet) |
+| **Connectivity type** | Public                                                  |
+| **Elastic IP**        | Allocate Elastic IP → click Allocate                    |
+
 Click **Create NAT gateway** — takes 1–2 minutes to become Available.
- 
+
 Once available, add the NAT route to the private route table:
+
 ```
 Route tables → InfoTech-Private-RT → Routes → Edit routes → Add route
 Destination: 0.0.0.0/0
 Target: InfoTech-NAT-GW
 Save changes
 ```
- 
+
 > ⚠️ **Cost note:** NAT Gateway charges approximately $0.045/hour.
 > Delete it when not in use — recreate when needed.
 > For Free Tier labs, stop the NAT Gateway between sessions.
- 
+
 ---
- 
+
 ## ⚙️ Part F — Create Security Groups
- 
+
 Security Groups act as virtual firewalls controlling inbound and
 outbound traffic at the instance level.
- 
+
 **Security Group 1 — Windows EC2 (RDP access)**
- 
+
 ```
 VPC → Security groups → Create security group
 ```
- 
-| Field | Value |
-|-------|-------|
+
+| Field    | Value                 |
+| -------- | --------------------- |
 | **Name** | `InfoTech-Windows-SG` |
-| **VPC** | `InfoTech-VPC` |
- 
+| **VPC**  | `InfoTech-VPC`        |
+
 Inbound rules:
- 
-| Type | Protocol | Port | Source | Purpose |
-|------|----------|------|--------|---------|
-| RDP | TCP | 3389 | My IP | Remote desktop access |
-| ICMP | All | All | 10.0.0.0/16 | Internal ping |
- 
+
+| Type | Protocol | Port | Source      | Purpose               |
+| ---- | -------- | ---- | ----------- | --------------------- |
+| RDP  | TCP      | 3389 | My IP       | Remote desktop access |
+| ICMP | All      | All  | 10.0.0.0/16 | Internal ping         |
+
 Outbound rules: Allow all (default) ✅
- 
+
 ---
- 
+
 **Security Group 2 — Linux EC2 (SSH access)**
- 
-| Field | Value |
-|-------|-------|
+
+| Field    | Value               |
+| -------- | ------------------- |
 | **Name** | `InfoTech-Linux-SG` |
-| **VPC** | `InfoTech-VPC` |
- 
+| **VPC**  | `InfoTech-VPC`      |
+
 Inbound rules:
- 
-| Type | Protocol | Port | Source | Purpose |
-|------|----------|------|--------|---------|
-| SSH | TCP | 22 | My IP | SSH access |
-| ICMP | All | All | 10.0.0.0/16 | Internal ping |
- 
+
+| Type | Protocol | Port | Source      | Purpose       |
+| ---- | -------- | ---- | ----------- | ------------- |
+| SSH  | TCP      | 22   | My IP       | SSH access    |
+| ICMP | All      | All  | 10.0.0.0/16 | Internal ping |
+
 Outbound rules: Allow all (default) ✅
- 
+
 ---
- 
+
 ## ⚙️ Part G — Enable VPC Flow Logs
- 
+
 VPC Flow Logs capture all network traffic in and out of the VPC —
 useful for security monitoring and troubleshooting.
- 
+
 ```
 VPC → Your VPCs → select InfoTech-VPC
 → Flow logs tab → Create flow log
 ```
- 
-| Field | Value |
-|-------|-------|
-| **Filter** | All |
-| **Destination** | CloudWatch Logs |
-| **Log group** | `/aws/vpc/infotech-flow-logs` (create new) |
-| **IAM role** | Create new role — allow VPC to write to CloudWatch |
- 
+
+| Field           | Value                                              |
+| --------------- | -------------------------------------------------- |
+| **Filter**      | All                                                |
+| **Destination** | CloudWatch Logs                                    |
+| **Log group**   | `/aws/vpc/infotech-flow-logs` (create new)         |
+| **IAM role**    | Create new role — allow VPC to write to CloudWatch |
+
+> ⚠️ \*\*\* If Flow logs cannot be created there, please follow these steps:
+
+```
+Create It Manually in IAM
+If the automatic option doesn't work, create it manually:
+
+# Step 1 — Go to IAM
+
+IAM → Roles → Create role
+
+# Step 2 — Select trusted entity
+Trusted entity type: AWS service
+Use case: search "VPC Flow Logs" → select it → Next
+
+# Step 3 — Attach permission policy
+
+Search: CloudWatchLogsFullAccess → Check it → Next
+
+# Step 4 — Name and create
+
+| Field           | Value                                      |
+| --------------- | -------------------------------------------|
+| Role name       | VPCFlowLogsRole                            |
+| Description     | Allows VPC Flow Logs to write to CloudWatch|
+
+Click Create role ✅
+
+# Step 5 — Go back to VPC Flow Logs
+
+VPC → Your VPCs → InfoTech-VPC
+→ Flow logs → Create flow log
+→ IAM role dropdown → select VPCFlowLogsRole
+
+# If You Can't Find "VPC Flow Logs" as a Use Case
+# Some AWS accounts don't show it directly. In that case:
+
+Step 2 → select "EC2" as use case → Next
+→ After creating the role, go back and edit the Trust Policy
+
+IAM → Roles → VPCFlowLogsRole
+→ Trust relationships tab → Edit trust policy
+→ Replace "ec2.amazonaws.com" with "vpc-flow-logs.amazonaws.com"
+→ Update policy
+
+```
+
 ---
- 
+
 ## ✅ Outcome
- 
+
 - Custom VPC `InfoTech-VPC` created — `10.0.0.0/16` ✅
 - Public subnet `10.0.1.0/24` in `ca-central-1a` ✅
 - Private subnet `10.0.2.0/24` in `ca-central-1b` ✅
@@ -704,7 +755,11 @@ VPC → Your VPCs → select InfoTech-VPC
 - Security Group for Windows EC2 — RDP on port 3389 ✅
 - Security Group for Linux EC2 — SSH on port 22 ✅
 - VPC Flow Logs enabled — sending to CloudWatch ✅
+
 ---
+
+## 📸 Screenshots
+
 <p align="center">
   <img src="screenshots/phase2/phase2-img1.png" width="45%"
         />
@@ -723,4 +778,305 @@ VPC → Your VPCs → select InfoTech-VPC
        />
   <img src="screenshots/phase2/phase2-img6.png" width="45%"
         />
+</p>
+
+---
+
+# ✅ Phase 3 — EC2 Compute Instances
+
+## 📋 What This Phase Covers
+
+EC2 (Elastic Compute Cloud) is AWS's virtual machine service. This phase
+launches two instances inside the VPC built in Phase 2 — a Windows Server
+in the public subnet accessed via RDP, and a Ubuntu Linux server in the
+private subnet accessed via SSH. Both are `t2.micro` which are Free Tier eligible.
+
+> Full EC2 configuration reference: [`config/ec2-config.md`](config/ec2-config.md)
+
+---
+
+## 🔍 Instance Architecture
+
+```
+Public Subnet (10.0.1.0/24)          Private Subnet (10.0.2.0/24)
+─────────────────────────────         ──────────────────────────────
+EC2: InfoTech-Windows-Server          EC2: InfoTech-Linux-Server
+AMI: Windows Server 2022              AMI: Ubuntu 22.04 LTS
+Type: t2.micro                        Type: t2.micro
+Access: RDP (port 3389)               Access: SSH (port 22)
+SG: InfoTech-Windows-SG               SG: InfoTech-Linux-SG
+Public IP: Yes (auto-assigned)        Public IP: No
+Internet: Via IGW                     Internet: Via NAT Gateway
+```
+
+---
+
+## ⚙️ Part A — Create a Key Pair
+
+A key pair is required to connect to both instances — used to decrypt
+the Windows password and to authenticate SSH on Linux.
+
+```
+EC2 → Key Pairs → Create key pair
+```
+
+| Field                  | Value                                                   |
+| ---------------------- | ------------------------------------------------------- |
+| **Name**               | `InfoTech-KeyPair`                                      |
+| **Key pair type**      | RSA                                                     |
+| **Private key format** | `.pem` (for Linux/Mac) or `.ppk` (for PuTTY on Windows) |
+
+Click **Create key pair** → the `.pem` file downloads automatically.
+
+> ⚠️ Save this file somewhere safe. If you lose it you cannot
+> connect to your instances and will need to recreate them.
+> Store it at: `C:\Users\YourName\.ssh\InfoTech-KeyPair.pem`
+
+---
+
+## ⚙️ Part B — Launch Windows Server EC2
+
+```
+EC2 → Instances → Launch instances
+```
+
+**Step 1 — Name and AMI**
+
+| Field            | Value                     |
+| ---------------- | ------------------------- |
+| **Name**         | `InfoTech-Windows-Server` |
+| **AMI**          | Windows Server 2022 Base  |
+| **Architecture** | 64-bit (x86)              |
+
+**Step 2 — Instance type**
+
+| Field             | Value                           |
+| ----------------- | ------------------------------- |
+| **Instance type** | `t2.micro` (Free Tier eligible) |
+
+**Step 3 — Key pair**
+
+| Field        | Value              |
+| ------------ | ------------------ |
+| **Key pair** | `InfoTech-KeyPair` |
+
+**Step 4 — Network settings**
+
+| Field                     | Value                                  |
+| ------------------------- | -------------------------------------- |
+| **VPC**                   | `InfoTech-VPC`                         |
+| **Subnet**                | `InfoTech-Public-Subnet`               |
+| **Auto-assign public IP** | Enable                                 |
+| **Security group**        | Select existing: `InfoTech-Windows-SG` |
+
+**Step 5 — Storage**
+
+| Field           | Value                                |
+| --------------- | ------------------------------------ |
+| **Root volume** | 30 GB gp2 (Free Tier includes 30 GB) |
+
+Click **Launch instance** ✅
+
+---
+
+## ⚙️ Part C — Launch Ubuntu Linux EC2
+
+```
+EC2 → Instances → Launch instances
+```
+
+**Step 1 — Name and AMI**
+
+| Field            | Value                   |
+| ---------------- | ----------------------- |
+| **Name**         | `InfoTech-Linux-Server` |
+| **AMI**          | Ubuntu Server 22.04 LTS |
+| **Architecture** | 64-bit (x86)            |
+
+**Step 2 — Instance type**
+
+| Field             | Value                           |
+| ----------------- | ------------------------------- |
+| **Instance type** | `t2.micro` (Free Tier eligible) |
+
+**Step 3 — Key pair**
+
+| Field        | Value                              |
+| ------------ | ---------------------------------- |
+| **Key pair** | `InfoTech-KeyPair` (same key pair) |
+
+**Step 4 — Network settings**
+
+| Field                     | Value                                |
+| ------------------------- | ------------------------------------ |
+| **VPC**                   | `InfoTech-VPC`                       |
+| **Subnet**                | `InfoTech-Private-Subnet`            |
+| **Auto-assign public IP** | Disable                              |
+| **Security group**        | Select existing: `InfoTech-Linux-SG` |
+
+**Step 5 — Storage**
+
+| Field           | Value    |
+| --------------- | -------- |
+| **Root volume** | 8 GB gp2 |
+
+Click **Launch instance** ✅
+
+---
+
+## ⚙️ Part D — Connect to Windows Server via RDP
+
+Wait 3–5 minutes for the Windows instance to fully initialise.
+
+**Step 1 — Get the Windows password**
+
+```
+EC2 → Instances → select InfoTech-Windows-Server
+→ Actions → Security → Get Windows password
+→ Upload your InfoTech-KeyPair.pem file
+→ Click Decrypt password
+→ Copy the password shown
+```
+
+**Step 2 — Get the public IP**
+
+```
+EC2 → Instances → InfoTech-Windows-Server
+→ Copy the Public IPv4 address
+```
+
+**Step 3 — Connect via RDP**
+
+Open **Remote Desktop Connection** on your computer:
+
+```
+Computer: <Public IPv4 address>
+Username: Administrator
+Password: <decrypted password from Step 1>
+```
+
+Click **Connect** → accept the certificate warning → you should see
+the Windows Server desktop ✅
+
+---
+
+## ⚙️ Part E — Connect to Linux Server via SSH
+
+The Linux instance is in the private subnet — no public IP.
+Connect to it through the Windows instance (bastion host pattern)
+or temporarily add a public IP for testing.
+
+**Option 1 — SSH from your local machine via SSM (Session Manager)**
+
+```
+EC2 → Instances → InfoTech-Linux-Server
+→ Connect → Session Manager tab → Connect
+```
+
+This opens a browser-based terminal directly — no SSH key needed.
+Requires the SSM agent (pre-installed on Ubuntu 22.04).
+
+**Option 2 — SSH from Windows Server (bastion host)**
+
+Copy your `.pem` key to the Windows Server, then SSH from there:
+
+```powershell
+# On Windows Server (after RDP connection)
+# Open PowerShell
+
+ssh -i "C:\InfoTech-KeyPair.pem" ubuntu@10.0.2.x
+# Replace 10.0.2.x with the Linux instance's private IP
+```
+
+Get the private IP:
+
+```
+EC2 → Instances → InfoTech-Linux-Server
+→ Private IPv4 address (e.g. 10.0.2.45)
+```
+
+---
+
+## ⚙️ Part F — Verify Connectivity
+
+**On the Windows Server (via RDP):**
+
+```powershell
+# Test internet connectivity
+ping google.com
+
+# Check Windows version
+winver
+
+# Check private IP
+ipconfig
+
+# Test connectivity to Linux server
+ping 10.0.2.x    # replace with Linux private IP
+```
+
+**On the Linux Server (via SSH or Session Manager):**
+
+```bash
+# Test outbound internet via NAT Gateway
+ping google.com -c 4
+
+# Check Ubuntu version
+lsb_release -a
+
+# Check private IP
+ip addr show
+
+# Update packages (confirms NAT Gateway is working)
+sudo apt update
+```
+
+---
+
+## ⚙️ Part G — Stop Instances When Not in Use
+
+> ⚠️ Free Tier gives 750 hours/month per instance type.
+> With two t2.micro instances running 24/7 that is 1,440 hours/month —
+> which exceeds the Free Tier. **Stop instances when not actively using them.**
+
+```
+EC2 → Instances → select both instances
+→ Instance state → Stop instance
+```
+
+Stopped instances do not accrue compute charges.
+EBS storage still charges — but 30 GB is within Free Tier.
+
+To restart:
+
+```
+EC2 → Instances → select instance
+→ Instance state → Start instance
+```
+
+> Note: Public IP changes every time the instance restarts unless
+> you assign an Elastic IP (covered in Phase 6).
+
+---
+
+## ✅ Outcome
+
+- Key pair `InfoTech-KeyPair` created and saved securely ✅
+- Windows Server 2022 EC2 launched in public subnet ✅
+- Ubuntu 22.04 EC2 launched in private subnet ✅
+- RDP connection to Windows Server confirmed ✅
+- SSH connection to Linux Server confirmed ✅
+- Ping between both instances successful — internal connectivity ✅
+- Internet connectivity verified on both instances ✅
+- NAT Gateway confirmed working — Linux can reach internet ✅
+- Both instances stopped when not in use ✅
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/phase3/phase3-img1.png" width="45%"
+        />
+ 
 </p>
