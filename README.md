@@ -13,7 +13,7 @@
 ![VPC](https://img.shields.io/badge/VPC-Networking-FF9900?style=flat-square)
 ![S3](https://img.shields.io/badge/S3-Storage-FF9900?style=flat-square&logo=amazons3)
 ![IAM](https://img.shields.io/badge/IAM-Identity-FF9900?style=flat-square)
-![Status](https://img.shields.io/badge/Status-In%20Progress-yellow?style=flat-square)
+![Status](https://img.shields.io/badge/Status-Complete-green?style=flat-square)
 
 </div>
 
@@ -124,7 +124,7 @@ aws-cloud-infra-lab/
 │   └── (phase screenshots added as project progresses)
 │
 ├── docs/
-│   └── runbook.md             # Operational runbook                     ⏳
+│   └── runbook.md             # Operational runbook                     ✅
 │
 └── README.md
 ```
@@ -142,8 +142,7 @@ aws-cloud-infra-lab/
 | 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ✅ Completed |
 | 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ✅ Completed |
 | 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ✅ Completed |
-| 6   | IAM hardening + AWS security best practices                           | ⏳ Pending   |
-| 7   | Runbook + final documentation + GitHub push                           | ⏳ Pending   |
+| 6   | IAM hardening + AWS security best practices                           | ✅ Completed |
 
 ---
 
@@ -1886,7 +1885,108 @@ static S3 website bucket being public is expected).
 <p align="center">
   <img src="screenshots/phase6/phase6-img1.png" width="45%"
         />
-       
- 
+      
 </p>
+
 ---
+
+# ✅ Phase 7 — Runbook & Final Documentation
+
+## 📋 What This Phase Covers
+
+The final phase wraps the project with a complete operational runbook
+covering day-to-day AWS management, a full real troubleshooting log,
+and the GitHub push checklist. Every resource built across Phases 1–6
+is referenced in the runbook so it serves as a single operational guide.
+
+> Full operational runbook: [`docs/runbook.md`](docs/runbook.md)
+
+---
+
+## 🔧 Real Troubleshooting Documented
+
+Every issue encountered during this project is documented below
+as a permanent reference.
+
+| Phase | Issue                                                           | Root Cause                                                  | Fix                                                                                                |
+| ----- | --------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 3     | Windows AMI launch error — SQL Server not supported on t3.micro | AMI selected included SQL Server                            | Selected Windows Server 2022 Base AMI instead                                                      |
+| 3     | Ubuntu AMI with SQL Server error                                | Marketplace AMI with SQL Server for Linux selected          | Selected plain Ubuntu 24.04 LTS from Quick Start                                                   |
+| 3     | RDP from VMware Windows Server could not reach EC2              | Security group IP mismatch — IP changed since rule creation | Updated inbound RDP rule to current My IP                                                          |
+| 5     | `ForEach-Object -Parallel` not recognised                       | Requires PowerShell 7+ — EC2 runs 5.1                       | Used `Start-Job` approach instead                                                                  |
+| 6     | VPC Flow Logs IAM role — no "Create new role" button            | Personal AWS account limitation                             | Created IAM role manually with EC2 use case, updated trust policy to `vpc-flow-logs.amazonaws.com` |
+
+---
+
+## 🗂️ Full Infrastructure Summary
+
+| Service        | Resource                                | Purpose                                 |
+| -------------- | --------------------------------------- | --------------------------------------- |
+| **IAM**        | `iamadmin`, `dev-user`, `readonly-user` | Identity management                     |
+| **IAM**        | Admins, Developers, ReadOnly groups     | Group-based permissions                 |
+| **IAM**        | `S3ReadOnly-InfoTechBucket` policy      | Custom least-privilege policy           |
+| **VPC**        | `InfoTech-VPC` 10.0.0.0/16              | Network foundation                      |
+| **VPC**        | Public + Private subnets                | Tiered network architecture             |
+| **VPC**        | Internet Gateway + NAT Gateway          | Internet access per tier                |
+| **VPC**        | Route tables + Security groups          | Traffic control                         |
+| **VPC**        | Flow Logs → CloudWatch                  | Network traffic visibility              |
+| **EC2**        | `InfoTech-Windows-Server`               | Windows compute in public subnet        |
+| **EC2**        | `InfoTech-Linux-Server`                 | Linux compute in private subnet         |
+| **S3**         | `infotech-lab-bucket`                   | Private storage — versioned + encrypted |
+| **S3**         | `infotech-static-bucket`                | Static website hosting                  |
+| **CloudWatch** | `InfoTech-Dashboard`                    | Unified monitoring view                 |
+| **CloudWatch** | High CPU + Status Check alarms          | Proactive alerting                      |
+| **CloudTrail** | `InfoTech-AuditTrail`                   | Full API audit log                      |
+| **SNS**        | `InfoTech-Alerts`                       | Email notifications                     |
+| **IAM**        | `InfoTech-AccessAnalyzer`               | External access detection               |
+
+---
+
+## 🚀 GitHub Push Checklist
+
+```
+Repository: aws-cloud-infra-lab
+─────────────────────────────────────────────────────
+✅ README.md
+✅ config/
+    ✅ iam-config.md
+    ✅ vpc-config.md
+    ✅ ec2-config.md
+    ✅ s3-config.md
+    ✅ cloudwatch-config.md
+✅ docs/
+    ✅ runbook.md
+✅ screenshots/
+    ✅ Phase 1–6 screenshots
+```
+
+---
+
+## ⚠️ Cost Management Checklist Before Leaving
+
+Always run through this before closing your AWS session:
+
+```
+☐ EC2 → Instances → Stop both instances
+☐ VPC → NAT Gateways → Delete InfoTech-NAT-GW (recreate when needed)
+☐ EC2 → Elastic IPs → Release any unattached IPs
+☐ Billing → Free Tier usage → confirm within limits
+```
+
+---
+
+<div align="center">
+
+![Status](https://img.shields.io/badge/Status-Complete-green?style=flat-square)
+
+**☁️ Built for learning • ⭐ Star if you find this useful**
+
+_Part of a series:_
+[AD & Windows Server Labs](https://github.com/sharmaSagar01/ad-windows-server-labs) •
+[AD Automation Toolkit](https://github.com/sharmaSagar01/ad-automation-toolkit) •
+[Wazuh SIEM Lab](https://github.com/sharmaSagar01/wazuh-siem-lab) •
+[ITSM Helpdesk Lab](https://github.com/sharmaSagar01/itsm-helpdesk-lab) •
+[Azure Hybrid Identity Lab](https://github.com/sharmaSagar01/azure-hybrid-identity-lab) •
+[AWS Cloud Infrastructure Lab](https://github.com/sharmaSagar01/aws-cloud-infra-lab)
+
+</div>
