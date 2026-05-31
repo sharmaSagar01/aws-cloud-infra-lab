@@ -117,7 +117,7 @@ aws-cloud-infra-lab/
 │   ├── iam-config.md          # IAM users, groups, roles, policies     ✅
 │   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ✅
 │   ├── ec2-config.md          # EC2 instances and configuration        ✅
-│   ├── s3-config.md           # S3 buckets, policies, lifecycle         ⏳
+│   ├── s3-config.md           # S3 buckets, policies, lifecycle         ✅
 │   └── cloudwatch-config.md   # Monitoring, alarms, log groups          ⏳
 │
 ├── screenshots/
@@ -140,7 +140,7 @@ aws-cloud-infra-lab/
 | 1   | AWS Free Tier setup + IAM users, groups, and MFA                      | ✅ Completed |
 | 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ✅ Completed |
 | 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ✅ Completed |
-| 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ⏳ Pending   |
+| 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ✅ Completed |
 | 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ⏳ Pending   |
 | 6   | IAM hardening + AWS security best practices                           | ⏳ Pending   |
 | 7   | Runbook + final documentation + GitHub push                           | ⏳ Pending   |
@@ -1080,3 +1080,313 @@ EC2 → Instances → select instance
         />
  
 </p>
+
+# ✅ Phase 4 — S3 Storage
+
+## 📋 What This Phase Covers
+
+S3 (Simple Storage Service) is AWS's object storage — used for backups,
+logs, static files, application assets, and data archiving. This phase
+creates two S3 buckets, configures bucket policies, enables versioning,
+sets up lifecycle rules, and tests uploading and downloading objects.
+S3 is one of the most used AWS services in real IT environments.
+
+> Full S3 configuration reference: [`config/s3-config.md`](config/s3-config.md)
+
+---
+
+## 🗂️ Bucket Design
+
+```
+infotech-lab-bucket          ← Main lab bucket (private)
+│ ├── /logs/                 ← EC2 and VPC flow logs
+│ ├── /backups/              ← Simulated server backups
+│ └── /configs/              ← Configuration file storage
+│
+infotech-static-bucket       ← Static website hosting (public)
+  └── index.html             ← Simple hosted webpage
+```
+
+---
+
+## ⚙️ Part A — Create the Main S3 Bucket
+
+```
+AWS Console → search "S3" → Create bucket
+```
+
+| Field                   | Value                           |
+| ----------------------- | ------------------------------- |
+| **Bucket name**         | `infotech-lab-bucket-yourname`  |
+| **AWS Region**          | `ca-central-1`                  |
+| **Object Ownership**    | ACLs disabled (recommended)     |
+| **Block Public Access** | Block all public access ✅      |
+| **Bucket Versioning**   | Enable                          |
+| **Default encryption**  | SSE-S3 (Amazon S3 managed keys) |
+
+Click **Create bucket** ✅
+
+> ⚠️ S3 bucket names are **globally unique** across all AWS accounts.
+> If `infotech-lab-bucket` is taken, add your name or a number:
+> `infotech-lab-bucket-sagar` or `infotech-lab-bucket-2026`
+
+---
+
+## ⚙️ Part B — Create Folder Structure
+
+```
+Click on infotech-lab-bucket
+→ Create folder
+```
+
+Create three folders:
+
+| Folder     | Purpose                          |
+| ---------- | -------------------------------- |
+| `logs/`    | Store VPC flow logs and EC2 logs |
+| `backups/` | Simulated server backup files    |
+| `configs/` | Configuration file storage       |
+
+---
+
+## ⚙️ Part C — Upload Test Files
+
+Test uploading objects to each folder:
+
+```
+S3 → infotech-lab-bucket → logs/ folder
+→ Upload → Add files
+→ Upload any small text file (e.g. create a test.txt)
+```
+
+Create a quick test file on your local machine:
+
+```
+test.txt content:
+"InfoTech Lab — S3 test upload — 2026"
+```
+
+Upload to each folder to confirm uploads work ✅
+
+**Verify the upload:**
+
+```
+Click on the uploaded file
+→ Note: Object URL, Size, Last modified, Storage class
+→ Click "Open" — confirms download works
+```
+
+---
+
+## ⚙️ Part D — Configure a Bucket Policy
+
+A bucket policy controls who can access the bucket and what actions
+they can perform. Add a policy that denies all access unless using HTTPS:
+
+```
+S3 → infotech-lab-bucket → Permissions tab
+→ Bucket policy → Edit
+```
+
+Paste this policy (replace `YOUR-BUCKET-NAME` with your actual bucket name):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "DenyNonHTTPS",
+      "Effect": "Deny",
+      "Principal": "*",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::YOUR-BUCKET-NAME",
+        "arn:aws:s3:::YOUR-BUCKET-NAME/*"
+      ],
+      "Condition": {
+        "Bool": {
+          "aws:SecureTransport": "false"
+        }
+      }
+    }
+  ]
+}
+```
+
+Click **Save changes** ✅
+
+This enforces encryption in transit — all HTTP requests are denied,
+only HTTPS allowed. Standard security best practice.
+
+---
+
+## ⚙️ Part E — Enable Versioning and Test It
+
+Versioning keeps every version of every object — useful for recovery
+from accidental deletion or overwrite.
+
+Versioning was enabled in Part A. Test it now:
+
+```
+1. Upload test.txt to backups/ folder
+2. Modify the file content locally: "InfoTech Lab — version 2"
+3. Upload the same filename again
+4. In S3 → toggle "Show versions" on
+5. You should see both versions of the file
+6. Click an older version → confirm you can download it
+```
+
+**Recovery test — delete and restore:**
+
+```
+1. Delete the latest version of test.txt
+2. Toggle "Show versions" → find the delete marker
+3. Delete the delete marker → file is restored ✅
+```
+
+---
+
+## ⚙️ Part F — Configure Lifecycle Rules
+
+Lifecycle rules automatically move or delete objects based on age —
+reducing storage costs without manual intervention.
+
+```
+S3 → infotech-lab-bucket → Management tab
+→ Lifecycle rules → Create lifecycle rule
+```
+
+**Rule 1 — Archive old logs**
+
+| Field          | Value                         |
+| -------------- | ----------------------------- |
+| **Rule name**  | `archive-old-logs`            |
+| **Scope**      | Limit to: `logs/` prefix      |
+| **Transition** | Move to Glacier after 30 days |
+| **Expiration** | Delete after 365 days         |
+
+**Rule 2 — Clean up old backups**
+
+| Field              | Value                                 |
+| ------------------ | ------------------------------------- |
+| **Rule name**      | `expire-old-backups`                  |
+| **Scope**          | Limit to: `backups/` prefix           |
+| **Expiration**     | Delete current versions after 90 days |
+| **Delete markers** | Clean up expired delete markers       |
+
+Click **Create rule** for each ✅
+
+---
+
+## ⚙️ Part G — Create a Static Website Bucket
+
+Create a second bucket for static website hosting — this makes S3
+serve a simple HTML page publicly, a common use case in real environments.
+
+```
+S3 → Create bucket
+```
+
+| Field                   | Value                            |
+| ----------------------- | -------------------------------- |
+| **Bucket name**         | `infotech-static-yourname`       |
+| **Region**              | `ca-central-1`                   |
+| **Block Public Access** | Uncheck — allow public access ✅ |
+| **Acknowledge**         | Check the warning checkbox       |
+
+**Enable static website hosting:**
+
+```
+infotech-static-yourname → Properties tab
+→ Static website hosting → Edit
+→ Enable
+→ Index document: index.html
+→ Save changes
+```
+
+**Create and upload index.html:**
+
+Create a file called `index.html` with this content:
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>InfoTech Lab</title>
+  </head>
+  <body>
+    <h1>InfoTech AWS Lab</h1>
+    <p>Static website hosted on Amazon S3</p>
+    <p>Project: AWS Cloud Infrastructure Lab</p>
+  </body>
+</html>
+```
+
+Upload it to the root of `infotech-static-yourname`.
+
+**Add a bucket policy to allow public read:**
+
+```
+Permissions → Bucket policy → Edit
+```
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "PublicReadAccess",
+      "Effect": "Allow",
+      "Principal": "*",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::infotech-static-yourname/*"
+    }
+  ]
+}
+```
+
+**Test the website:**
+
+```
+Properties → Static website hosting → copy the Bucket website endpoint
+→ Open in browser → your HTML page loads ✅
+```
+
+---
+
+## ✅ Outcome
+
+- Main bucket `infotech-lab-bucket` created — private, encrypted ✅
+- Folder structure created — logs, backups, configs ✅
+- Test files uploaded and downloaded successfully ✅
+- Bucket policy enforcing HTTPS-only access ✅
+- Versioning enabled — version recovery tested ✅
+- Lifecycle rules configured — archive logs after 30 days ✅
+- Static website bucket created and publicly accessible ✅
+- HTML page served from S3 bucket website endpoint ✅
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/phase4/phase4-img1.png" width="45%"
+        />
+         <img src="screenshots/phase4/phase4-img2.png" width="45%"
+        />
+ 
+</p>
+<p align="center">
+  <img src="screenshots/phase4/phase4-img3.png" width="45%"
+        />
+         <img src="screenshots/phase4/phase4-img4.png" width="45%"
+        />
+ 
+</p>
+<p align="center">
+  <img src="screenshots/phase4/phase4-img5.png" width="45%"
+        />
+         
+ 
+</p>
+---
