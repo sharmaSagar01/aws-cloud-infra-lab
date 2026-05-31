@@ -1982,7 +1982,7 @@ Always run through this before closing your AWS session:
 **☁️ Built for learning • ⭐ Star if you find this useful**
 
 _Part of a series:_
-[AD & Windows Server Labs](https://github.com/sharmaSagar01/ad-windows-server-labs) •
+[AD & Windows Server Labs](https://github.com/sharmaSagar01/Active-Directory-Lab) •
 [AD Automation Toolkit](https://github.com/sharmaSagar01/ad-automation-toolkit) •
 [Wazuh SIEM Lab](https://github.com/sharmaSagar01/wazuh-siem-lab) •
 [ITSM Helpdesk Lab](https://github.com/sharmaSagar01/itsm-helpdesk-lab) •
