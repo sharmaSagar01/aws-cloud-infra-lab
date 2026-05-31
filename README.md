@@ -1558,15 +1558,18 @@ Trigger the CPU alarm manually to confirm email notifications work:
 **Start both EC2 instances first**, then on the Windows Server via RDP:
  
 ```powershell
-# Stress test CPU — runs for 60 seconds
-# Open PowerShell on the Windows EC2 instance
- 
-$result = 1..4 | ForEach-Object -Parallel {
-    $end = (Get-Date).AddSeconds(60)
-    while ((Get-Date) -lt $end) { $x = [Math]::Sqrt(999999) }
-} -ThrottleLimit 4
- 
-Write-Host "CPU stress test complete"
+# Works on PowerShell 5.1 — runs for 60 seconds using background jobs
+$end = (Get-Date).AddSeconds(60)
+$jobs = 1..4 | ForEach-Object {
+    Start-Job -ScriptBlock {
+        $end = (Get-Date).AddSeconds(60)
+        while ((Get-Date) -lt $end) { $x = [Math]::Sqrt(999999) }
+    }
+}
+Write-Host "CPU stress running for 60 seconds..." -ForegroundColor Yellow
+Wait-Job $jobs | Out-Null
+Remove-Job $jobs
+Write-Host "CPU stress test complete" -ForegroundColor Green
 ```
  
 Then watch in CloudWatch:
@@ -1661,9 +1664,9 @@ Click **Run query** and review the results ✅
 - VPC Flow Logs queried — traffic visible in Logs Insights ✅
 
 ---
- 
+
 ## 📸 Screenshots
- 
+
 <p align="center">
   <img src="screenshots/phase5/phase5-img1.png" width="45%"
         />
@@ -1673,6 +1676,215 @@ Click **Run query** and review the results ✅
 </p>
 <p align="center">
   <img src="screenshots/phase5/phase5-img3.png" width="45%"
+        />
+       
+ 
+</p>
+---
+
+---
+
+# ✅ Phase 6 — IAM Hardening & AWS Security
+
+## 📋 What This Phase Covers
+
+Security is not a single step — it is a set of practices applied across
+every service. This phase reviews and hardens the entire AWS environment
+using IAM best practices, CloudTrail audit logging, AWS Trusted Advisor
+security checks, and a full security group review. By the end every
+resource in the lab follows the principle of least privilege.
+
+---
+
+## ⚙️ Part A — Enable CloudTrail
+
+CloudTrail records every API call made in your AWS account — who did
+what, when, and from where. Essential for auditing and incident response.
+
+```
+AWS Console → search "CloudTrail"
+→ Trails → Create trail
+```
+
+| Field                           | Value                                          |
+| ------------------------------- | ---------------------------------------------- |
+| **Trail name**                  | `InfoTech-AuditTrail`                          |
+| **Storage location**            | Create new S3 bucket                           |
+| **S3 bucket name**              | `infotech-cloudtrail-logs-yourname`            |
+| **Log file SSE-KMS encryption** | Disabled (keep simple for lab)                 |
+| **CloudWatch Logs**             | Enable — log group: `/aws/cloudtrail/infotech` |
+| **Events**                      | Management events — Read and Write             |
+
+Click **Create trail** ✅
+
+**Verify CloudTrail is recording:**
+
+```
+CloudTrail → Event history
+→ You should see recent API calls listed immediately
+→ Filter by Event source: s3.amazonaws.com to see S3 activity
+```
+
+---
+
+## ⚙️ Part B — Review IAM Users for Least Privilege
+
+Audit every IAM user and confirm no one has more permissions than needed:
+
+```
+IAM → Users → click each user → Permissions tab
+```
+
+**Expected permissions:**
+
+| User            | Policy                                     | Appropriate?           |
+| --------------- | ------------------------------------------ | ---------------------- |
+| `iamadmin`      | AdministratorAccess                        | ✅ Yes — admin user    |
+| `dev-user`      | PowerUserAccess                            | ✅ Yes — no IAM access |
+| `readonly-user` | ReadOnlyAccess + S3ReadOnly-InfoTechBucket | ✅ Yes — view only     |
+
+**Check for unused users:**
+
+```
+IAM → Users → Last activity column
+→ Any user showing "Never" or 90+ days → consider removing
+```
+
+---
+
+## ⚙️ Part C — Remove Unused IAM Credentials
+
+Check for any access keys that exist but are not being used:
+
+```
+IAM → Users → iamadmin → Security credentials tab
+→ Access keys section
+```
+
+For a console-only admin user there should be **no access keys**.
+If any exist and are unused — delete them:
+
+```
+Access keys → Actions → Delete
+```
+
+Also enable MFA on `dev-user` and `readonly-user` if not done:
+
+```
+IAM → Users → select user
+→ Security credentials → MFA → Assign MFA device
+```
+
+---
+
+## ⚙️ Part D — Review and Harden Security Groups
+
+Audit every security group to confirm no overly permissive rules exist:
+
+```
+EC2 → Security groups → review each group
+```
+
+**Check for these dangerous rules and remove them:**
+
+| Dangerous Rule               | Why It's Bad                             | Fix                |
+| ---------------------------- | ---------------------------------------- | ------------------ |
+| RDP from `0.0.0.0/0`         | Anyone on the internet can attempt login | Restrict to My IP  |
+| SSH from `0.0.0.0/0`         | Same — open to internet brute force      | Restrict to My IP  |
+| All traffic from `0.0.0.0/0` | No restriction at all                    | Delete immediately |
+
+**Your security groups should look like:**
+
+```
+InfoTech-Windows-SG
+  Inbound: RDP 3389 → My IP only ✅
+
+InfoTech-Linux-SG
+  Inbound: SSH 22 → My IP only ✅
+```
+
+---
+
+## ⚙️ Part E — Enable S3 Server Access Logging
+
+Track every request made to the main S3 bucket:
+
+```
+S3 → infotech-lab-bucket → Properties tab
+→ Server access logging → Edit
+→ Enable
+→ Target bucket: infotech-lab-bucket
+→ Target prefix: access-logs/
+→ Save changes
+```
+
+---
+
+## ⚙️ Part F — Check AWS Trusted Advisor
+
+Trusted Advisor runs automated checks against AWS best practices.
+The free tier gives access to core security checks:
+
+```
+AWS Console → search "Trusted Advisor"
+→ Security category
+```
+
+Review these checks:
+
+| Check                                 | Expected Status                              |
+| ------------------------------------- | -------------------------------------------- |
+| S3 Bucket Permissions                 | ✅ Green — no public buckets (except static) |
+| Security Groups — Unrestricted Access | ✅ Green — no 0.0.0.0/0                      |
+| IAM Use                               | ✅ Green — root MFA enabled                  |
+| MFA on Root                           | ✅ Green                                     |
+| CloudTrail Logging                    | ✅ Green — trail active                      |
+
+Fix any item showing **Red** or **Yellow** before moving on.
+
+---
+
+## ⚙️ Part G — Review IAM Access Analyzer
+
+IAM Access Analyzer identifies resources shared with external principals:
+
+```
+IAM → Access Analyzer → Create analyzer
+```
+
+| Field             | Value                     |
+| ----------------- | ------------------------- |
+| **Analyzer name** | `InfoTech-AccessAnalyzer` |
+| **Zone of trust** | Current account           |
+
+Click **Create analyzer** ✅
+
+```
+IAM → Access Analyzer → Findings
+```
+
+Any finding means a resource is accessible from outside your account.
+Review each finding and mark as **Archived** if intentional (e.g. the
+static S3 website bucket being public is expected).
+
+---
+
+## ✅ Outcome
+
+- CloudTrail enabled — all API calls logged to S3 and CloudWatch ✅
+- IAM users reviewed — all following least privilege ✅
+- Unused access keys checked and removed ✅
+- Security groups audited — RDP and SSH scoped to My IP only ✅
+- S3 server access logging enabled ✅
+- Trusted Advisor — all security checks green ✅
+- IAM Access Analyzer created — findings reviewed ✅
+
+---
+
+## 📸 Screenshots
+
+<p align="center">
+  <img src="screenshots/phase6/phase6-img1.png" width="45%"
         />
        
  
