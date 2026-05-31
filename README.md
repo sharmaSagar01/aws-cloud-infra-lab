@@ -118,7 +118,7 @@ aws-cloud-infra-lab/
 │   ├── vpc-config.md          # VPC, subnets, route tables, SGs        ✅
 │   ├── ec2-config.md          # EC2 instances and configuration        ✅
 │   ├── s3-config.md           # S3 buckets, policies, lifecycle         ✅
-│   └── cloudwatch-config.md   # Monitoring, alarms, log groups          ⏳
+│   └── cloudwatch-config.md   # Monitoring, alarms, log groups          ✅
 │
 ├── screenshots/
 │   └── (phase screenshots added as project progresses)
@@ -141,7 +141,7 @@ aws-cloud-infra-lab/
 | 2   | Custom VPC — subnets, route tables, security groups, internet gateway | ✅ Completed |
 | 3   | EC2 — launch Windows and Linux instances, connect via RDP and SSH     | ✅ Completed |
 | 4   | S3 — buckets, policies, versioning, and lifecycle rules               | ✅ Completed |
-| 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ⏳ Pending   |
+| 5   | CloudWatch — monitoring, alarms, dashboards, and log groups           | ✅ Completed |
 | 6   | IAM hardening + AWS security best practices                           | ⏳ Pending   |
 | 7   | Runbook + final documentation + GitHub push                           | ⏳ Pending   |
 
@@ -1323,7 +1323,7 @@ Create a file called `index.html` with this content:
 ```
 
 Upload it to the root of `infotech-static-yourname`.
-
+Pending
 **Add a bucket policy to allow public read:**
 
 ```
@@ -1387,6 +1387,294 @@ Properties → Static website hosting → copy the Bucket website endpoint
   <img src="screenshots/phase4/phase4-img5.png" width="45%"
         />
          
+ 
+</p>
+---
+---
+ 
+# ✅ Phase 5 — CloudWatch Monitoring
+ 
+## 📋 What This Phase Covers
+ 
+CloudWatch is AWS's monitoring and observability service — it collects
+metrics, logs, and events from every AWS service. This phase sets up
+EC2 monitoring, creates alarms for CPU and status checks, builds a
+custom dashboard, and queries the VPC Flow Logs configured in Phase 2.
+ 
+> Full CloudWatch configuration reference: [`config/cloudwatch-config.md`](config/cloudwatch-config.md)
+ 
+---
+ 
+## 🔍 What Gets Monitored
+ 
+```
+CloudWatch
+│
+├── EC2 Metrics (built-in — no agent needed)
+│   ├── CPUUtilization
+│   ├── NetworkIn / NetworkOut
+│   ├── StatusCheckFailed
+│   └── DiskReadOps / DiskWriteOps
+│
+├── Alarms
+│   ├── High CPU alarm → notify via email (SNS)
+│   └── Instance status check failed → notify via email
+│
+├── Log Groups
+│   ├── /aws/vpc/infotech-flow-logs  (from Phase 2)
+│   └── /aws/ec2/infotech-windows    (from CloudWatch agent)
+│
+└── Dashboard
+    └── InfoTech-Dashboard — all metrics in one view
+```
+ 
+---
+ 
+## ⚙️ Part A — View Default EC2 Metrics
+ 
+Start by exploring the built-in EC2 metrics — no setup needed:
+ 
+```
+AWS Console → search "CloudWatch"
+→ Metrics → All metrics → EC2 → Per-Instance Metrics
+```
+ 
+Find your `InfoTech-Windows-Server` instance and explore:
+ 
+| Metric | What It Shows |
+|--------|--------------|
+| `CPUUtilization` | Percentage of CPU used |
+| `NetworkIn` | Bytes received by the instance |
+| `NetworkOut` | Bytes sent by the instance |
+| `StatusCheckFailed` | 0 = healthy, 1 = failed |
+| `DiskReadOps` | Read operations on EBS volume |
+ 
+Click any metric → select 1 hour → view the graph ✅
+ 
+> **Note:** Basic monitoring updates every 5 minutes.
+> Detailed monitoring updates every 1 minute but costs extra.
+> Basic (free) is sufficient for this lab.
+ 
+---
+ 
+## ⚙️ Part B — Create an SNS Topic for Alert Emails
+ 
+Before creating alarms, set up an SNS topic so CloudWatch can
+send you email notifications when an alarm fires.
+ 
+```
+AWS Console → search "SNS" → Topics → Create topic
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Type** | Standard |
+| **Name** | `InfoTech-Alerts` |
+ 
+Click **Create topic** ✅
+ 
+**Create a subscription:**
+```
+Click InfoTech-Alerts → Subscriptions → Create subscription
+Protocol: Email
+Endpoint: your email address
+Create subscription
+```
+ 
+**Confirm the subscription:**
+```
+Check your email → click "Confirm subscription" in the email from AWS
+```
+ 
+Status changes from **PendingConfirmation** to **Confirmed** ✅
+ 
+---
+ 
+## ⚙️ Part C — Create a High CPU Alarm
+ 
+```
+CloudWatch → Alarms → All alarms → Create alarm
+→ Select metric
+```
+ 
+**Step 1 — Select metric:**
+```
+EC2 → Per-Instance Metrics
+→ search your instance ID
+→ select: CPUUtilization → Select metric
+```
+ 
+**Step 2 — Conditions:**
+ 
+| Field | Value |
+|-------|-------|
+| **Statistic** | Average |
+| **Period** | 5 minutes |
+| **Threshold type** | Static |
+| **Condition** | Greater than |
+| **Threshold value** | `80` |
+ 
+**Step 3 — Notification:**
+```
+Alarm state trigger: In alarm
+Send notification to: InfoTech-Alerts (SNS topic)
+```
+ 
+**Step 4 — Name:**
+ 
+| Field | Value |
+|-------|-------|
+| **Alarm name** | `InfoTech-HighCPU-Windows` |
+| **Description** | CPU above 80% on Windows Server |
+ 
+Click **Create alarm** ✅
+ 
+---
+ 
+## ⚙️ Part D — Create a Status Check Alarm
+ 
+```
+CloudWatch → Alarms → Create alarm → Select metric
+→ EC2 → Per-Instance Metrics
+→ StatusCheckFailed → Select metric
+```
+ 
+| Field | Value |
+|-------|-------|
+| **Statistic** | Maximum |
+| **Period** | 1 minute |
+| **Threshold** | Greater than or equal to `1` |
+| **Alarm name** | `InfoTech-StatusCheck-Windows` |
+| **Notification** | InfoTech-Alerts SNS topic |
+ 
+Click **Create alarm** ✅
+ 
+---
+ 
+## ⚙️ Part E — Test an Alarm
+ 
+Trigger the CPU alarm manually to confirm email notifications work:
+ 
+**Start both EC2 instances first**, then on the Windows Server via RDP:
+ 
+```powershell
+# Stress test CPU — runs for 60 seconds
+# Open PowerShell on the Windows EC2 instance
+ 
+$result = 1..4 | ForEach-Object -Parallel {
+    $end = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $end) { $x = [Math]::Sqrt(999999) }
+} -ThrottleLimit 4
+ 
+Write-Host "CPU stress test complete"
+```
+ 
+Then watch in CloudWatch:
+```
+CloudWatch → Alarms → InfoTech-HighCPU-Windows
+```
+ 
+The alarm should transition: **OK → In alarm** → you receive an email ✅
+ 
+---
+ 
+## ⚙️ Part F — Create a CloudWatch Dashboard
+ 
+A dashboard brings all your metrics into a single view:
+ 
+```
+CloudWatch → Dashboards → Create dashboard
+Name: InfoTech-Dashboard
+→ Add widget
+```
+ 
+Add these four widgets:
+ 
+| Widget | Type | Metric |
+|--------|------|--------|
+| CPU Utilisation | Line graph | EC2 CPUUtilization |
+| Network Traffic | Line graph | EC2 NetworkIn + NetworkOut |
+| Alarm Status | Alarm status | Both alarms |
+| VPC Flow Logs | Log table | `/aws/vpc/infotech-flow-logs` |
+ 
+For each widget:
+```
+Add widget → select type → configure metric/log → Create widget
+```
+ 
+Click **Save dashboard** ✅
+ 
+---
+ 
+## ⚙️ Part G — Query VPC Flow Logs
+ 
+The VPC Flow Logs created in Phase 2 are now available in CloudWatch.
+Query them to see actual network traffic:
+ 
+```
+CloudWatch → Logs → Log groups
+→ /aws/vpc/infotech-flow-logs
+→ Search log group
+```
+ 
+**Sample queries using CloudWatch Logs Insights:**
+ 
+```
+CloudWatch → Logs → Logs Insights
+→ Select log group: /aws/vpc/infotech-flow-logs
+```
+ 
+```sql
+-- View all traffic in last 30 minutes
+fields @timestamp, srcAddr, dstAddr, action, protocol
+| sort @timestamp desc
+| limit 50
+```
+ 
+```sql
+-- View only rejected traffic
+fields @timestamp, srcAddr, dstAddr, action
+| filter action = "REJECT"
+| sort @timestamp desc
+| limit 20
+```
+ 
+```sql
+-- Top source IPs by traffic volume
+stats sum(bytes) as totalBytes by srcAddr
+| sort totalBytes desc
+| limit 10
+```
+ 
+Click **Run query** and review the results ✅
+ 
+---
+ 
+## ✅ Outcome
+ 
+- Default EC2 metrics explored in CloudWatch console ✅
+- SNS topic `InfoTech-Alerts` created — email confirmed ✅
+- High CPU alarm created — threshold 80% with email notification ✅
+- Status check alarm created — fires on instance health failure ✅
+- CPU alarm tested — In alarm state triggered and email received ✅
+- CloudWatch dashboard `InfoTech-Dashboard` created ✅
+- VPC Flow Logs queried — traffic visible in Logs Insights ✅
+
+---
+ 
+## 📸 Screenshots
+ 
+<p align="center">
+  <img src="screenshots/phase5/phase5-img1.png" width="45%"
+        />
+         <img src="screenshots/phase5/phase5-img2.png" width="45%"
+        />
+ 
+</p>
+<p align="center">
+  <img src="screenshots/phase5/phase5-img3.png" width="45%"
+        />
+       
  
 </p>
 ---
